@@ -6,9 +6,6 @@
 
 import warnings
 
-warnings.filterwarnings("ignore", category=FutureWarning)
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
 import logging
 import math
 import os
@@ -24,7 +21,7 @@ import numpy as np
 
 try:
     import orjson as json
-except:
+except Exception:
     import json
 
 import torch
@@ -39,7 +36,6 @@ from internvl.model.internvl_chat import (
     InternVLChatModel,
 )
 from internvl.patch import (
-    concat_pad_data_collator,
     dpo_concat_pad_data_collator,
     replace_llama_rmsnorm_with_fused_rmsnorm,
     replace_train_sampler,
@@ -75,8 +71,6 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     HfArgumentParser,
-    Trainer,
-    TrainingArguments,
     set_seed,
 )
 from transformers.trainer_utils import get_last_checkpoint
@@ -93,9 +87,12 @@ try:
     from petrel_client.common.config import Config
 
     has_tcs_loader = True
-except ImportError as E:
+except ImportError:
     print("petrel_client is not installed. Using PIL to load images.")
     has_tcs_loader = False
+
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # Set constants for image processing and logging
 IGNORE_INDEX = -100
@@ -783,7 +780,7 @@ class LazySupervisedDataset(Dataset):
             try:
                 data_item = json.loads(self.raw_data[i])
                 if "image" in data_item and len(data_item["image"]) != 0:
-                    if type(data_item["image"]) == list:
+                    if isinstance(data_item["image"], list):
                         ret = self.multi_modal_multi_image_get_item(data_item)
                     else:
                         ret = self.multi_modal_get_item(data_item)
@@ -803,7 +800,7 @@ class LazySupervisedDataset(Dataset):
                     traceback.print_exc()
                 data_item = json.loads(self.raw_data[i])
                 if "image" in data_item:
-                    if type(data_item["image"]) == list:
+                    if isinstance(data_item["image"], list):
                         images = [self.root + item for item in data_item["image"]]
                         print(
                             f"Failed to load image: {images}, the dataset is: {self.ds_name}"
@@ -881,7 +878,7 @@ def build_datasets(
 
     if data_args.use_data_resampling:
         total_length = sum(lengths)
-        weights = [l / total_length for l in lengths]
+        weights = [lth / total_length for lth in lengths]
         train_dataset = WeightedConcatDataset(datasets, weights)
     else:
         train_dataset = ConcatDataset(datasets)
@@ -991,7 +988,6 @@ def main():
     tcs_loader = TCSLoader("~/petreloss.conf") if has_tcs_loader else None
 
     if model_args.use_liger:
-        from internvl.patch import apply_liger_kernel_to_internvit
         from liger_kernel.transformers import (
             apply_liger_kernel_to_llama,
             apply_liger_kernel_to_qwen2,
@@ -1212,7 +1208,7 @@ def main():
         metrics = train_result.metrics
         try:
             metrics["train_samples"] = len(train_dataset)
-        except:
+        except Exception:
             metrics["train_samples"] = -1
 
         trainer.log_metrics("train", metrics)

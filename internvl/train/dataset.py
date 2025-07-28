@@ -43,7 +43,7 @@ from .constants import (
 try:
     from petrel_client.client import Client
     from petrel_client.common.config import Config
-except ImportError as E:
+except ImportError:
     print(
         "petrel_client is not installed. If you read data locally instead of from ceph, ignore it."
     )
@@ -83,7 +83,7 @@ def get_frame_indices(
         if sample == "rand":
             try:
                 frame_indices = [random.choice(range(x[0], x[1])) for x in ranges]
-            except:
+            except Exception:
                 frame_indices = np.random.permutation(vlen)[:acc_samples]
                 frame_indices.sort()
                 frame_indices = list(frame_indices)

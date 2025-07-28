@@ -20,7 +20,7 @@ import numpy as np
 
 try:
     import orjson as json
-except:
+except Exception:
     import json
 
 import torch
@@ -60,7 +60,6 @@ from internvl.train.dataset import (
     TCSLoader,
     WeightedConcatDataset,
     build_transform,
-    check_conversations_repetition,
     dynamic_preprocess,
     preprocess,
     preprocess_internlm,
@@ -93,7 +92,7 @@ try:
     from petrel_client.common.config import Config
 
     has_tcs_loader = True
-except ImportError as E:
+except ImportError:
     print("petrel_client is not installed. Using PIL to load images.")
     has_tcs_loader = False
 
@@ -791,7 +790,7 @@ class LazySupervisedDataset(Dataset):
                 # conversations = data_item['conversations']
                 # check_conversations_repetition(conversations, repeat_threshold=0.4, ngram=10)
                 if "image" in data_item and len(data_item["image"]) != 0:
-                    if type(data_item["image"]) == list:
+                    if isinstance(data_item["image"], list):
                         ret = self.multi_modal_multi_image_get_item(data_item)
                     else:
                         ret = self.multi_modal_get_item(data_item)
@@ -811,7 +810,7 @@ class LazySupervisedDataset(Dataset):
                     traceback.print_exc()
                 data_item = json.loads(self.raw_data[i])
                 if "image" in data_item:
-                    if type(data_item["image"]) == list:
+                    if isinstance(data_item["image"], list):
                         images = [self.root + item for item in data_item["image"]]
                         print(
                             f"Failed to load image: {images}, the dataset is: {self.ds_name}"
@@ -924,7 +923,7 @@ def build_datasets(
             data_rank=data_rank,
             data_world_size=data_world_size,
             datasets=datasets,
-            dataset_weight=[l / total_length for l in lengths],
+            dataset_weight=[lth / total_length for lth in lengths],
             num_images_expected=data_args.num_images_expected,
             max_packed_tokens=data_args.max_packed_tokens,
             max_buffer_size=data_args.max_buffer_size,
@@ -936,7 +935,7 @@ def build_datasets(
         )
     elif data_args.use_data_resampling:
         total_length = sum(lengths)
-        weights = [l / total_length for l in lengths]
+        weights = [lth / total_length for lth in lengths]
         train_dataset = WeightedConcatDataset(datasets, weights)
     else:
         train_dataset = ConcatDataset(datasets)
@@ -1064,7 +1063,6 @@ def main():
         replace_llama_attention_class()
 
     if model_args.use_liger:
-        from internvl.patch import apply_liger_kernel_to_internvit
         from liger_kernel.transformers import (
             apply_liger_kernel_to_llama,
             apply_liger_kernel_to_qwen2,
@@ -1282,7 +1280,7 @@ def main():
         metrics = train_result.metrics
         try:
             metrics["train_samples"] = len(train_dataset)
-        except:
+        except Exception:
             metrics["train_samples"] = -1
 
         trainer.log_metrics("train", metrics)

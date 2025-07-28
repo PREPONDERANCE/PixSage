@@ -68,7 +68,7 @@ try:
         _unpad_input,
     )
     has_flash_attn = True
-except:
+except Exception:
     has_flash_attn = False
 
 

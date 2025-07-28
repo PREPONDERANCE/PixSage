@@ -17,15 +17,13 @@ from peft import LoraConfig, get_peft_model
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from transformers import (
-    AutoModel,
     GenerationConfig,
     LlamaForCausalLM,
-    LlamaTokenizer,
     Qwen2ForCausalLM,
 )
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.modeling_utils import PreTrainedModel
-from transformers.utils import ModelOutput, logging
+from transformers.utils import logging
 
 from .configuration_internvl_chat import InternVLChatConfig
 from .modeling_intern_vit import InternVisionModel, has_flash_attn
@@ -545,16 +543,6 @@ class InternVLChatModel(PreTrainedModel):
         )
 
         return outputs
-
-    @property
-    def lm_head(self):
-        return self.language_model.get_output_embeddings()
-
-    def get_input_embeddings(self):
-        return self.language_model.get_input_embeddings()
-
-    def get_output_embeddings(self):
-        return self.language_model.get_output_embeddings()
 
     @property
     def lm_head(self):

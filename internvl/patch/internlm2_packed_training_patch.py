@@ -9,7 +9,6 @@ from flash_attn.flash_attn_interface import flash_attn_varlen_func
 from internvl.model.internlm2.modeling_internlm2 import (
     INTERNLM2_ATTENTION_CLASSES,
     InternLM2FlashAttention2,
-    apply_rotary_pos_emb,
 )
 
 

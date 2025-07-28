@@ -24,7 +24,7 @@ try:
     from flash_attn.flash_attn_interface import flash_attn_varlen_qkvpacked_func
 
     has_flash_attn = True
-except:
+except Exception:
     print("FlashAttention2 is not installed.")
     has_flash_attn = False
 

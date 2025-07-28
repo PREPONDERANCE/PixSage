@@ -8,7 +8,7 @@ import bisect
 import copy
 import logging
 from collections import defaultdict
-from typing import List, Union
+from typing import List
 
 import numpy as np
 import torch
@@ -181,7 +181,7 @@ class PackedDataset(IterableDataset):
                             self.dataset_iter_list[current_dataset_idx]
                         )
                         break
-                    except:
+                    except Exception:
                         # logger.error(f'{self.worker_id=} Fail to get any data from {self.datasets[current_dataset_idx].ds_name}! length={len(self.datasets)}')
                         self.datasets.pop(current_dataset_idx)
                         self.dataset_iter_list.pop(current_dataset_idx)
@@ -199,7 +199,7 @@ class PackedDataset(IterableDataset):
                     if len(self.datasets) == 0:
                         raise StopIteration
                     current_dataset_idx = np.random.choice(len(self.datasets))
-            except:
+            except Exception:
                 logger.error("Unexpected error!")
                 if len(self.datasets) == 0:
                     raise StopIteration
@@ -528,7 +528,7 @@ class PackedDataset(IterableDataset):
 
             try:
                 current_sample = self.next_data(current_dataset_idx)
-            except:
+            except Exception:
                 logger.info(
                     f"All datasets are exhausted, begin to empty the buffer_list ({len(buffer_list)=})"
                 )

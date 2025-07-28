@@ -10,7 +10,7 @@ import torch
 import transformers
 from torch.utils.data import Dataset, Sampler
 from transformers.tokenization_utils_base import BatchEncoding
-from transformers.trainer import LengthGroupedSampler, RandomSampler, has_length
+from transformers.trainer import RandomSampler, has_length
 from transformers.trainer_pt_utils import logger
 
 
