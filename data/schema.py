@@ -28,7 +28,7 @@ class AnnotationInternVL(BaseModel):
 class AnnotationMeta(BaseModel):
     root: str
     annotation_train: str
-    annotation_test: str
+    annotation_eval: str
     data_augment: bool = False
     repeat_time: int = 1
     length: int

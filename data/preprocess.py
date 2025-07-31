@@ -102,7 +102,7 @@ class Preprocessor:
         meta = AnnotationMeta(
             root=str(self._img_path.absolute()),
             annotation_train=str(anno_train_file.absolute()),
-            annotation_test=str(anno_test_file.absolute()),
+            annotation_eval=str(anno_test_file.absolute()),
             length=len(anno) * len(settings.METRICS),
         )
         async with aiofiles.open(meta_file, "w+") as f:
