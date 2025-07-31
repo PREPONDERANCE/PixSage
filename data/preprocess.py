@@ -86,7 +86,7 @@ class Preprocessor:
 
         path = Path(settings.DATA_DIR)
         anno_train_file = path / f"{settings.DATA_ANNO}_train.jsonl"
-        anno_test_file = path / f"{settings.DATA_ANNO}_test.jsonl"
+        anno_test_file = path / f"{settings.DATA_ANNO}_eval.jsonl"
         meta_file = path / f"{settings.DATA_META}.json"
 
         async with aiofiles.open(anno_train_file, "w+") as f:
