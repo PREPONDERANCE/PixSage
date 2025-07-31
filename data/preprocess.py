@@ -38,7 +38,7 @@ class Preprocessor:
         return res.choices[0].message.content
 
     async def get_prompt(self, prompt: Dict[str, Union[str, Dict[str, str]]]) -> str:
-        return await asyncio.to_thread(json.dumps, prompt)
+        return await asyncio.to_thread(json.dumps, prompt, ensure_ascii=False)
 
     def construct_data(
         self, anno: AnnotationBody, prompt: str
