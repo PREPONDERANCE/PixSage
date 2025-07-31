@@ -57,7 +57,7 @@ class Preprocessor:
                     value=settings.CHAT_TEMPLATE.format(prompt=prompt, metric=metric),
                 ),
                 ChatInternVL(
-                    source="ai",
+                    source="gpt",
                     value=settings.RESPONSE_TEMPLATE.format(
                         quality=settings.QUALITY_MAP[anno.scores[metric_zh]]
                     ),
