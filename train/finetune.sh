@@ -1,7 +1,7 @@
 set -x
 
-GPUS=${GPUS:-8}
-BATCH_SIZE=${BATCH_SIZE:-128}
+GPUS=${GPUS:-2}
+BATCH_SIZE=${BATCH_SIZE:-64}
 PER_DEVICE_BATCH_SIZE=${PER_DEVICE_BATCH_SIZE:-4}
 GRADIENT_ACC=$((BATCH_SIZE / PER_DEVICE_BATCH_SIZE / GPUS))
 
@@ -20,7 +20,7 @@ fi
 # number of gpus: 8
 # batch size per gpu: 4
 # gradient accumulation steps: 4
-# total batch size: 128
+# total batch size: 64
 # epoch: 1
 torchrun \
   --nnodes=1 \
@@ -45,7 +45,7 @@ torchrun \
   --vision_select_layer -1 \
   --dataloader_num_workers 4 \
   --bf16 True \
-  --num_train_epochs 1 \
+  --num_train_epochs 50 \
   --per_device_train_batch_size ${PER_DEVICE_BATCH_SIZE} \
   --gradient_accumulation_steps ${GRADIENT_ACC} \
   --evaluation_strategy "no" \
