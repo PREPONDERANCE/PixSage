@@ -96,6 +96,8 @@ except ImportError:
     print("petrel_client is not installed. Using PIL to load images.")
     has_tcs_loader = False
 
+from config import settings
+
 # Set constants for image processing and logging
 IGNORE_INDEX = -100
 Image.MAX_IMAGE_PIXELS = None
@@ -362,6 +364,7 @@ class LazySupervisedDataset(Dataset):
         distributed_mode=False,
         force_shuffle=False,
         random_seed=0,
+        train_eval: str = "train",
     ):
         super(LazySupervisedDataset, self).__init__()
         self.ds_name = ds_name
@@ -399,11 +402,13 @@ class LazySupervisedDataset(Dataset):
         self._state_dict = {}
 
         logger.info("Formatting inputs...Skip in lazy mode")
-        assert meta["annotation"].endswith("jsonl"), (
+
+        anno_file = meta[f"{settings.DATA_ANNO}_{train_eval}"]
+        assert anno_file.endswith("jsonl"), (
             f"annotation must be jsonl, but got {meta['annotation']}"
         )
 
-        with open(meta["annotation"], "r") as f:
+        with open(anno_file, "r") as f:
             self.raw_data = f.readlines()
             if repeat_time < 1:
                 # If repeat_time is less than 1, select a portion of the data
@@ -867,6 +872,7 @@ def build_datasets(
     min_num_frame=8,
     max_num_frame=32,
     normalize_type="imagenet",
+    train_eval: str = "train",
 ):
     datasets = []
     lengths = []
@@ -908,6 +914,7 @@ def build_datasets(
             distributed_mode=data_args.use_packed_ds,
             force_shuffle=data_args.use_packed_ds,
             random_seed=ds_idx,
+            train_eval=train_eval,
         )
         logger.info(f"Add dataset: {ds_name} with length: {len(dataset)}")
         datasets.append(dataset)
@@ -1201,6 +1208,22 @@ def main():
         max_num_frame=data_args.max_num_frame,
     )
 
+    eval_dataset = build_datasets(
+        data_args,
+        tokenizer,
+        tcs_loader,
+        model,
+        group_by_length=training_args.group_by_length,
+        dynamic_image_size=data_args.dynamic_image_size,
+        use_thumbnail=data_args.use_thumbnail,
+        min_dynamic_patch=data_args.min_dynamic_patch,
+        max_dynamic_patch=data_args.max_dynamic_patch,
+        normalize_type=data_args.normalize_type,
+        min_num_frame=data_args.min_num_frame,
+        max_num_frame=data_args.max_num_frame,
+        train_eval="eval",
+    )
+
     def _freeze_params(module):
         for param in module.parameters():
             param.requires_grad = False
@@ -1262,7 +1285,7 @@ def main():
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
-        eval_dataset=None,
+        eval_dataset=eval_dataset,
         tokenizer=tokenizer,
         data_collator=collator,
     )

@@ -91,6 +91,8 @@ except ImportError:
     print("petrel_client is not installed. Using PIL to load images.")
     has_tcs_loader = False
 
+from config import settings
+
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -324,6 +326,7 @@ class LazySupervisedDataset(Dataset):
         repeat_time=1,
         normalize_type="imagenet",
         random_seed=0,
+        train_eval: str = "train",
     ):
         super(LazySupervisedDataset, self).__init__()
         self.ds_name = ds_name
@@ -345,11 +348,13 @@ class LazySupervisedDataset(Dataset):
         self.sampling_method = sampling_method
 
         logger.info("Formatting inputs...Skip in lazy mode")
-        assert meta["annotation"].endswith("jsonl"), (
+
+        anno_file = meta[f"{settings.DATA_ANNO}_{train_eval}"]
+        assert anno_file.endswith("jsonl"), (
             f"annotation must be jsonl, but got {meta['annotation']}"
         )
 
-        with open(meta["annotation"], "r") as f:
+        with open(anno_file, "r") as f:
             self.raw_data = f.readlines()
             if repeat_time < 1:
                 # If repeat_time is less than 1, select a portion of the data
