@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.9"
 resolution-markers = [
     "python_full_version >= '3.12' and sys_platform == 'darwin'",
@@ -18,7 +18,7 @@ resolution-markers = [
 
 [[package]]
 name = "accelerate"
-version = "1.9.0"
+version = "0.27.2"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
 dependencies = [
     { name = "huggingface-hub" },
@@ -29,9 +29,9 @@ dependencies = [
     { name = "safetensors" },
     { name = "torch" },
 ]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/c4/25/969456a95a90ed38f73f68d0f0915bdf1d76145d05054c59ad587b171150/accelerate-1.9.0.tar.gz", hash = "sha256:0e8c61f81af7bf37195b6175a545ed292617dd90563c88f49020aea5b6a0b47f" }
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/7a/03/0cf4ade7087659e8892d9082fb678132f352a15b424eee9c91d2de9b66ad/accelerate-0.27.2.tar.gz", hash = "sha256:cc715fe9a8bc7a286259bfb6d65fb78363badd3371e7cbda4e4a4ef34a0010aa" }
 wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/9f/1c/a17fb513aeb684fb83bef5f395910f53103ab30308bbdd77fd66d6698c46/accelerate-1.9.0-py3-none-any.whl", hash = "sha256:c24739a97ade1d54af4549a65f8b6b046adc87e2b3e4d6c66516e32c53d5a8f1" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/1b/da/24a54b9205fce3bdbaad521c35944d0b0a2d292ac5ae921e484b76312b43/accelerate-0.27.2-py3-none-any.whl", hash = "sha256:a818dd27b9ba24e9eb5030d1b285cf4cdd1b41bbfa675fb4eb2477ddfc097074" },
 ]
 
 [[package]]
@@ -515,18 +515,6 @@ sdist = { url = "https://mirrors.aliyun.com/pypi/packages/0a/10/c23352565a6544bd
 wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/4d/36/2a115987e2d8c300a974597416d9de88f2444426de9571f4b59b2cca3acc/filelock-3.18.0-py3-none-any.whl", hash = "sha256:c401f4f8377c4464e6db25fff06205fd89bdd83b65eb0488ed1b160f780e21de" },
 ]
-
-[[package]]
-name = "flash-attn"
-version = "2.3.6"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
-dependencies = [
-    { name = "einops", marker = "(python_full_version < '3.10' and platform_machine != 'arm64') or sys_platform != 'darwin'" },
-    { name = "ninja", marker = "(python_full_version < '3.10' and platform_machine != 'arm64') or sys_platform != 'darwin'" },
-    { name = "packaging", marker = "(python_full_version < '3.10' and platform_machine != 'arm64') or sys_platform != 'darwin'" },
-    { name = "torch", marker = "(python_full_version < '3.10' and platform_machine != 'arm64') or sys_platform != 'darwin'" },
-]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/3c/49/95b86adfc0d90676dcb07fcbef47c71997e6e7c9e71fda51598a962d9148/flash_attn-2.3.6.tar.gz", hash = "sha256:4fc6c08714ee1c88178946465498677c59448429b43bd6244b222feb23ac9d4c" }
 
 [[package]]
 name = "frozenlist"
@@ -1703,7 +1691,6 @@ dependencies = [
     { name = "einops" },
     { name = "einops-exts" },
     { name = "filelock" },
-    { name = "flash-attn", marker = "sys_platform != 'darwin'" },
     { name = "fsspec" },
     { name = "fvcore" },
     { name = "hf-xet" },
@@ -1785,7 +1772,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "accelerate", specifier = "==1.9.0" },
+    { name = "accelerate", specifier = "==0.27.2" },
     { name = "aiofiles", specifier = ">=24.1.0" },
     { name = "annotated-types", specifier = "==0.7.0" },
     { name = "av", specifier = "==15.0.0" },
@@ -1800,7 +1787,6 @@ requires-dist = [
     { name = "einops", specifier = "==0.6.1" },
     { name = "einops-exts", specifier = "==0.0.4" },
     { name = "filelock", specifier = "==3.18.0" },
-    { name = "flash-attn", marker = "sys_platform != 'darwin'", specifier = "==2.3.6" },
     { name = "fsspec", specifier = "==2025.7.0" },
     { name = "fvcore", specifier = "==0.1.5.post20221221" },
     { name = "hf-xet", specifier = "==1.1.5" },

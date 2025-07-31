@@ -1,6 +1,6 @@
 [project]
 dependencies = [
-    "accelerate==1.9.0",
+    "accelerate==0.27.2",
     "aiofiles>=24.1.0",
     "annotated-types==0.7.0",
     "av==15.0.0",
@@ -15,7 +15,7 @@ dependencies = [
     "einops==0.6.1",
     "einops-exts==0.0.4",
     "filelock==3.18.0",
-    "flash-attn==2.3.6; sys_platform != 'darwin'",
+    # "flash-attn==2.3.6; sys_platform != 'darwin'",
     "fsspec==2025.7.0",
     "fvcore==0.1.5.post20221221",
     "hf-xet==1.1.5",
