@@ -14,3 +14,6 @@ dataset/
 
 # Output
 output/
+
+# Env File
+.env

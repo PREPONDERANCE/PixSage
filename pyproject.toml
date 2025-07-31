@@ -10,6 +10,7 @@ dependencies = [
     "cmake==4.0.3",
     "decord==0.6.0; sys_platform != 'darwin'",
     "deepspeed==0.13.5",
+    "dotenv>=0.9.9",
     "einops==0.6.1",
     "einops-exts==0.0.4",
     "filelock==3.18.0",

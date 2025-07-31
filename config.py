@@ -1,6 +1,12 @@
+import os
+from dotenv import load_dotenv
+
+
 class Settings:
+    def __init__(self):
+        load_dotenv()
+
     MODEL_ID = "qwen-plus"
-    MODEL_KEY = "sk-223f07fbb08d4db99db4a2292bc9cf2d"
     MODEL_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
     MODEL_SYS_PROMPT = """Translate this json into pure English and use natural language to describe.
@@ -8,6 +14,10 @@ class Settings:
                       should be concatenated to form a paragraph. Please be concise and do not
                       add adjective information and cling to the original semantics. Afterwards,
                       you should use comma to concatenate all the sentences."""
+
+    @property
+    def MODEL_KEY(self):
+        return os.environ.get("MODEL_KEY")
 
     DATA_DIR = "dataset"
     DATA_ANNO = "annotation"
