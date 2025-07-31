@@ -1,6 +1,7 @@
 [project]
 dependencies = [
     "accelerate==1.9.0",
+    "aiofiles>=24.1.0",
     "annotated-types==0.7.0",
     "av==15.0.0",
     "bitsandbytes==0.41.0",
