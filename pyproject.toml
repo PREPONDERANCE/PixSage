@@ -8,6 +8,7 @@ dependencies = [
     "certifi==2025.7.14",
     "charset-normalizer==3.4.2",
     "cmake==4.0.3",
+    "datasets>=2.14.4",
     "decord==0.6.0; sys_platform != 'darwin'",
     "deepspeed==0.13.5",
     "dotenv>=0.9.9",
