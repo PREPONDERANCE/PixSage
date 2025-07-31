@@ -56,6 +56,7 @@ dependencies = [
     "protobuf==6.31.1",
     "psutil==7.0.0",
     "py-cpuinfo==9.0.0",
+    "pyarrow==10.0.1",
     "pycocoevalcap==1.2",
     "pycocotools==2.0.10",
     "pydantic==2.11.7",
