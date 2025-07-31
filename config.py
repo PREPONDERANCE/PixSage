@@ -36,7 +36,7 @@ class Settings:
 
     QUALITY_MAP = ["bad", "good"]
     RESPONSE_TEMPLATE = "The quality of this image is {quality}."
-    CHAT_TEMPLATE = "<image>\nBackground on this image: {prompt}\nConsidering {metric}, how would you rate this image?"
+    CHAT_TEMPLATE = "<image>\nEvaluate this image for '{metric}' based on the following JSON (keys in Chinese but respond in English):\n\n```json\n{prompt}\n```.\nOutput format: 'The quality of this image is [good/bad].'"
 
 
 settings = Settings()
