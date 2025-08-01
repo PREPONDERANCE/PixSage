@@ -51,12 +51,12 @@ torchrun \
   --per_device_train_batch_size ${PER_DEVICE_BATCH_SIZE} \
   --gradient_accumulation_steps ${GRADIENT_ACC} \
   --evaluation_strategy "steps" \
-  --eval_steps 0.25 \
+  --eval_steps 20 \
   --per_device_eval_batch_size ${PER_DEVICE_BATCH_SIZE} \
   --save_strategy "steps" \
   --save_steps 200 \
   --save_total_limit 1 \
-  --learning_rate 8e-6 \
+  --learning_rate 2e-5 \
   --weight_decay 0.05 \
   --warmup_ratio 0.03 \
   --lr_scheduler_type "cosine" \
