@@ -14,8 +14,7 @@ wheels/
 dataset/
 
 # Output
-output/
-output_stage_2/
+output*/
 
 # Env File
 .env
