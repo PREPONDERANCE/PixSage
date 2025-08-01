@@ -34,8 +34,6 @@ torchrun \
   --use_fast_tokenizer False \
   --output_dir ${OUTPUT_DIR} \
   --meta_path "dataset/meta.json" \
-  --use_llm_lora 8\
-  --use_backbone_lora 8\
   --overwrite_output_dir True \
   --force_image_size 448 \
   --max_dynamic_patch 12 \

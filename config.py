@@ -38,5 +38,7 @@ class Settings:
     RESPONSE_TEMPLATE = "The quality of this image is {quality}."
     CHAT_TEMPLATE = "<image>\nEvaluate this image for '{metric}' based on the following JSON (keys in Chinese but respond in English):\n\n```json\n{prompt}\n```.\nOutput format: 'The quality of this image is [good/bad].'"
 
+    LORA_WEIGHT = "lora_weights.pth"
+
 
 settings = Settings()

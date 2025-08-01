@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PIL import Image
 from torchvision.transforms.functional import InterpolationMode
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoTokenizer
 
 from config import settings
 from data.schema import AnnotationBody
@@ -28,25 +28,24 @@ class Evaluator:
         self.image_path = Path(image_path)
         self.text_path = Path(text_path)
 
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_path, trust_remote_code=True, use_fast=False
         )
 
-        self.model: InternVLChatModel = AutoModel.from_pretrained(
+        self.model = InternVLChatModel.from_pretrained(
             model_path,
             torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
             use_flash_attn=True,
             trust_remote_code=True,
-            device_map=self.split_model(model_name),
+            device_map=self.device,
         ).eval()
 
         self.generation_config = dict(max_new_tokens=1024, do_sample=True)
 
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model = self.model.to(self.device)
-
-    def build_transform(input_size):
+    def build_transform(self, input_size):
         MEAN, STD = IMAGENET_MEAN, IMAGENET_STD
         transform = T.Compose(
             [
@@ -137,7 +136,7 @@ class Evaluator:
         world_size = torch.cuda.device_count()
         num_layers = {
             "InternVL3-1B": 24,
-            "InternVL3-2B": 24,
+            "InternVL3-2B": 28,
             "InternVL3-4B": 36,
             "InternVL3-8B": 32,
             "InternVL3-26B": 48,
@@ -167,9 +166,10 @@ class Evaluator:
     def evaluate_single(self, anno: AnnotationBody):
         ip = self.image_path / anno.image_id
         pixel_values = self.load_image(ip, max_num=12).to(torch.bfloat16)
-        pixel_values = pixel_values.to(self.device)
+        pixel_values = pixel_values.to(self.model.device)
 
-        for metric in settings.METRICS.keys():
+        res = []
+        for metric, metric_zh in settings.METRICS.items():
             question = settings.CHAT_TEMPLATE.format(
                 metric=metric,
                 prompt=json.dumps(anno.prompt),
@@ -182,16 +182,28 @@ class Evaluator:
                 self.generation_config,
             )
 
-            print(f"Image Path: {ip}, From {metric}, {response}")
+            res[anno.image_id].append({metric_zh: response})
 
-    @torch.no_grad()
+        return res
+
     def evaluate(self):
-        for p in os.listdir(self.text_path):
-            tp = self.text_path / p
+        total = []
 
-            with open(tp, "r+") as f:
-                anno = AnnotationBody(**json.load(f))
-                self.evaluate_single(anno)
+        with torch.no_grad():
+            for p in os.listdir(self.text_path):
+                if p == ".ipynb_checkpoints":
+                    continue
+
+                tp = self.text_path / p
+
+                with open(tp, "r+") as f:
+                    anno = AnnotationBody(**json.load(f))
+                    res = self.evaluate_single(anno)
+                    print(res)
+                    total.append(res)
+
+        with open("output_infer/res.txt", "w+") as f:
+            f.write(json.dumps(total))
 
 
 parser = argparse.ArgumentParser()
@@ -202,3 +214,5 @@ parser.add_argument("--model_path", required=True)
 
 args = parser.parse_args()
 evl = Evaluator(args.image_path, args.text_path, args.model_path)
+
+evl.evaluate()
