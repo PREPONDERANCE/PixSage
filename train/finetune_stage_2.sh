@@ -34,7 +34,7 @@ torchrun \
   --use_fast_tokenizer False \
   --output_dir ${OUTPUT_DIR} \
   --meta_path "dataset/meta.json" \
-  --output-hidden-states True \
+  --output_hidden_states True \
   --train_stage 1 \
   --use_llm_lora 8 \
   --use_backbone_lora 8 \
