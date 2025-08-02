@@ -592,7 +592,7 @@ class LazySupervisedDataset(Dataset):
             position_ids=position_ids[0],
             pixel_values=pixel_values,
             image_flags=torch.tensor([1] * num_patches, dtype=torch.long),
-            score=torch.tensor(float(data_item["score"])).to(torch.bfloat16),
+            score=torch.tensor([data_item["score"]]).to(torch.bfloat16),
         )
         return ret
 
