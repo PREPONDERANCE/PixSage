@@ -599,44 +599,6 @@ class InternVLChatModel(PreTrainedModel):
     def get_output_embeddings(self):
         return self.language_model.get_output_embeddings()
 
-    @classmethod
-    def from_pretrained(
-        cls,
-        pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
-        *model_args,
-        config: Optional[Union[PretrainedConfig, str, os.PathLike]] = None,
-        cache_dir: Optional[Union[str, os.PathLike]] = None,
-        ignore_mismatched_sizes: bool = False,
-        force_download: bool = False,
-        local_files_only: bool = False,
-        token: Optional[Union[str, bool]] = None,
-        revision: str = "main",
-        use_safetensors: bool = None,
-        **kwargs,
-    ):
-        model = PreTrainedModel.from_pretrained(
-            pretrained_model_name_or_path,
-            *model_args,
-            config,
-            cache_dir,
-            ignore_mismatched_sizes,
-            force_download,
-            local_files_only,
-            token,
-            revision,
-            use_safetensors,
-            **kwargs,
-        )
-
-        path = Path(pretrained_model_name_or_path)
-        if path.exists():
-            lora_path = path / settings.LORA_WEIGHT
-            if lora_path.exists():
-                lora_dict = torch.load(lora_path, weights_only=True)
-                model.load_state_dict(lora_dict, strict=False)
-
-        return model
-
     @override
     def save_pretrained(
         self,

@@ -26,6 +26,9 @@ except Exception:
 import torch
 import torch.distributed as dist
 import transformers
+
+from pathlib import Path
+
 from internvl.dist_utils import init_dist
 from internvl.model.internlm2.modeling_internlm2 import InternLM2ForCausalLM
 from internvl.model.internvl_chat import (
@@ -1136,6 +1139,13 @@ def main():
         model = InternVLChatModel.from_pretrained(
             model_args.model_name_or_path, torch_dtype=torch.bfloat16, config=config
         )
+
+        path = Path(model_args.model_name_or_path)
+        if path.exists():
+            lora_path = path / settings.LORA_WEIGHT
+            if lora_path.exists():
+                lora_dict = torch.load(lora_path, weights_only=True)
+                model.load_state_dict(lora_dict, strict=False)
     else:
         logger.info("Loading ViT-6B...")
         vision_config = InternVisionConfig.from_pretrained(model_args.vision_path)
