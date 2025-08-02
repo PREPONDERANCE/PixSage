@@ -149,7 +149,7 @@ class InternVLChatModel(PreTrainedModel):
             nn.Linear(llm_hidden_size, llm_hidden_size),
         )
 
-        self.score_mlp = MLP()
+        self.score_mlp = MLP(1536)
         self.train_stage = config.llm_config.train_stage
 
         self.img_context_token_id = None
@@ -340,7 +340,8 @@ class InternVLChatModel(PreTrainedModel):
         # BCE Loss -- Supervise the labels
         if self.train_stage == 1:
             hidden_state = outputs.hidden_states[-1]
-            out_score = self.score_mlp(hidden_state)
+            input_tensor = hidden_state[:, -1, :]
+            out_score = self.score_mlp(input_tensor)
             loss_fn = BCEWithLogitsLoss(reduction="mean")
             loss = 0.2 * loss + loss_fn(score, out_score)
 
