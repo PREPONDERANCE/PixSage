@@ -4,7 +4,6 @@
 # Licensed under The MIT License [see LICENSE for details]
 # --------------------------------------------------------
 
-import os
 import warnings
 from typing import List, Optional, Tuple, Union, Type
 
@@ -23,7 +22,7 @@ from transformers import (
     Qwen2ForCausalLM,
 )
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from transformers.modeling_utils import PreTrainedModel, PretrainedConfig
+from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import logging
 
 from pathlib import Path
@@ -151,6 +150,7 @@ class InternVLChatModel(PreTrainedModel):
         )
 
         self.score_mlp = MLP()
+        self.train_stage = config.llm_config.train_stage
 
         self.img_context_token_id = None
         self.conv_template = get_conv_template(self.template)
@@ -237,7 +237,6 @@ class InternVLChatModel(PreTrainedModel):
         statistics: Optional[torch.LongTensor] = None,
         loss_weight: Optional[List] = None,
         loss_reduction_all_gather: Optional[bool] = False,
-        train_stage: Optional[int] = 0,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         return_dict = (
             return_dict if return_dict is not None else self.config.use_return_dict
@@ -339,7 +338,7 @@ class InternVLChatModel(PreTrainedModel):
                 loss = loss * 0.0
 
         # BCE Loss -- Supervise the labels
-        if train_stage == 1:
+        if self.train_stage == 1:
             hidden_state = outputs.hidden_states[-1]
             out_score = self.score_mlp(hidden_state)
             loss_fn = BCEWithLogitsLoss(reduction="mean")
