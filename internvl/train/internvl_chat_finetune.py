@@ -382,9 +382,6 @@ class LazySupervisedDataset(Dataset):
         random_seed=0,
         # Train or eval dataset
         train_eval: str = "train",
-        # Extra training arguments
-        output_hidden_states: bool = False,
-        train_stage: int = 0,
     ):
         super(LazySupervisedDataset, self).__init__()
         self.ds_name = ds_name
@@ -418,10 +415,6 @@ class LazySupervisedDataset(Dataset):
         self.max_num_images = 1
         self.max_tokens = tokenizer.model_max_length
         self.force_shuffle = force_shuffle
-
-        # Extra training arguments
-        self.output_hidden_states = output_hidden_states
-        self.train_stage = train_stage
 
         # TODO: quick resume
         self._state_dict = {}
@@ -599,7 +592,7 @@ class LazySupervisedDataset(Dataset):
             position_ids=position_ids[0],
             pixel_values=pixel_values,
             image_flags=torch.tensor([1] * num_patches, dtype=torch.long),
-            score=torch.Tensor(float(data_item["score"])).to(torch.bfloat16),
+            score=torch.tensor(float(data_item["score"])).to(torch.bfloat16),
         )
         return ret
 
@@ -860,13 +853,6 @@ class LazySupervisedDataset(Dataset):
                         f"Failed to load video: {data_path}, the dataset is: {self.ds_name}"
                     )
                 i = random.randint(0, len(self.raw_data) - 1)
-
-        ret.update(
-            {
-                "output_hidden_states": self.output_hidden_states,
-                "train_stage": self.train_stage,
-            }
-        )
         return ret
 
     def __iter__(self):
@@ -906,8 +892,6 @@ def build_datasets(
     max_num_frame=32,
     normalize_type="imagenet",
     train_eval: str = "train",
-    output_hidden_states: bool = False,
-    train_stage: int = 0,
 ):
     datasets = []
     lengths = []
@@ -951,8 +935,6 @@ def build_datasets(
             random_seed=ds_idx,
             # Train or eval dataset
             train_eval=train_eval,
-            output_hidden_states=output_hidden_states,
-            train_stage=train_stage,
         )
         logger.info(f"Add dataset: {ds_name} with length: {len(dataset)}")
         datasets.append(dataset)
@@ -1129,6 +1111,10 @@ def main():
         else:
             config.llm_config._attn_implementation = "flash_attention_2"  # for LLaMA
             logger.info("Using flash_attention_2 for LLaMA")
+
+        config.llm_config.output_hidden_states = extra_args.output_hidden_states
+        config.llm_config.train_stage = extra_args.train_stage
+
         config.template = data_args.conv_style
         config.select_layer = model_args.vision_select_layer
         config.dynamic_image_size = data_args.dynamic_image_size
@@ -1253,8 +1239,6 @@ def main():
         normalize_type=data_args.normalize_type,
         min_num_frame=data_args.min_num_frame,
         max_num_frame=data_args.max_num_frame,
-        output_hidden_states=extra_args.output_hidden_states,
-        train_stage=extra_args.train_stage,
     )
 
     eval_dataset = build_datasets(
@@ -1271,8 +1255,6 @@ def main():
         min_num_frame=data_args.min_num_frame,
         max_num_frame=data_args.max_num_frame,
         train_eval="eval",
-        output_hidden_states=extra_args.output_hidden_states,
-        train_stage=extra_args.train_stage,
     )
 
     def _freeze_params(module):
