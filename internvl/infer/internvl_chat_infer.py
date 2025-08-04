@@ -1225,21 +1225,6 @@ def main():
     if model_args.grad_checkpoint:
         model.language_model._set_gradient_checkpointing()
 
-    train_dataset = build_datasets(
-        data_args,
-        tokenizer,
-        tcs_loader,
-        model,
-        group_by_length=training_args.group_by_length,
-        dynamic_image_size=data_args.dynamic_image_size,
-        use_thumbnail=data_args.use_thumbnail,
-        min_dynamic_patch=data_args.min_dynamic_patch,
-        max_dynamic_patch=data_args.max_dynamic_patch,
-        normalize_type=data_args.normalize_type,
-        min_num_frame=data_args.min_num_frame,
-        max_num_frame=data_args.max_num_frame,
-    )
-
     eval_dataset = build_datasets(
         data_args,
         tokenizer,
