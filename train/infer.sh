@@ -11,7 +11,7 @@ export MASTER_PORT=34229
 export TF_CPP_MIN_LOG_LEVEL=3
 export LAUNCHER=pytorch
 
-OUTPUT_DIR='output_stage_2'
+OUTPUT_DIR='output_infer'
 
 if [ ! -d "$OUTPUT_DIR" ]; then
   mkdir -p "$OUTPUT_DIR"
@@ -28,23 +28,21 @@ torchrun \
   --master_addr=127.0.0.1 \
   --nproc_per_node=${GPUS} \
   --master_port=${MASTER_PORT} \
-  internvl/train/internvl_chat_finetune.py \
-  --model_name_or_path "output/checkpoint-2200" \
+  internvl/infer/internvl_chat_infer.py \
+  --model_name_or_path "output_stage_2/model" \
   --conv_style "internvl2_5" \
   --use_fast_tokenizer False \
   --output_dir ${OUTPUT_DIR} \
   --meta_path "dataset/meta.json" \
   --output_hidden_states True \
   --train_stage 1 \
-  --use_llm_lora 8 \
-  --use_backbone_lora 8 \
   --overwrite_output_dir True \
   --force_image_size 448 \
   --max_dynamic_patch 12 \
   --down_sample_ratio 0.5 \
   --drop_path_rate 0.0 \
   --freeze_llm True \
-  --freeze_mlp False \
+  --freeze_mlp True \
   --freeze_backbone True \
   --vision_select_layer -1 \
   --dataloader_num_workers 4 \
@@ -59,7 +57,7 @@ torchrun \
   --save_steps 200 \
   --save_total_limit 1 \
   --learning_rate 2e-5 \
-  --weight_decay 0.05 \
+  --weight_decay 0.01 \
   --warmup_ratio 0.03 \
   --lr_scheduler_type "cosine" \
   --logging_steps 1 \

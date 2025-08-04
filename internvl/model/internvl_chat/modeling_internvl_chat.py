@@ -237,6 +237,7 @@ class InternVLChatModel(PreTrainedModel):
         statistics: Optional[torch.LongTensor] = None,
         loss_weight: Optional[List] = None,
         loss_reduction_all_gather: Optional[bool] = False,
+        return_results: Optional[bool] = False,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         return_dict = (
             return_dict if return_dict is not None else self.config.use_return_dict
@@ -343,7 +344,11 @@ class InternVLChatModel(PreTrainedModel):
             input_tensor = hidden_state[:, -1, :]
             out_score = self.score_mlp(input_tensor)
             loss_fn = BCEWithLogitsLoss(reduction="mean")
-            loss = 0.2 * loss + loss_fn(score, out_score)
+
+            if return_results:
+                return torch.sigmoid(out_score)
+
+            loss = 0.5 * loss + loss_fn(out_score, score)
 
         if not return_dict:
             output = (logits,) + outputs[1:]
