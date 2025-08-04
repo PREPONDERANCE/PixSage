@@ -58,7 +58,6 @@ class MLP(nn.Module):
             nn.Linear(64, 16),
             act_layer(),
             nn.Linear(16, 1),
-            act_layer(),
         )
 
         self._init_weights()
