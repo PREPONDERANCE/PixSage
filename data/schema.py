@@ -22,6 +22,8 @@ class AnnotationInternVL(BaseModel):
     image: str
     width: int
     height: int
+    score: int = 0
+    metric: str = ""
     conversations: List[ChatInternVL]
 
 

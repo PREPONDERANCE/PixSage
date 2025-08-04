@@ -30,11 +30,11 @@ torchrun \
   --master_port=${MASTER_PORT} \
   internvl/infer/internvl_chat_infer.py \
   --model_name_or_path "output_stage_2/model" \
+  --image_path "/root/autodl-tmp/temp/images" \
+  --text_path "/root/autodl-tmp/temp/text" \
   --conv_style "internvl2_5" \
   --use_fast_tokenizer False \
   --output_dir ${OUTPUT_DIR} \
-  --meta_path "dataset/meta.json" \
-  --output_hidden_states True \
   --train_stage 1 \
   --overwrite_output_dir True \
   --force_image_size 448 \

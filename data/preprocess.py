@@ -66,10 +66,12 @@ class Preprocessor:
 
             annotations.append(
                 AnnotationInternVL(
-                    id=ip_relative,
-                    image=ip_relative,
                     width=w,
                     height=h,
+                    id=ip_relative,
+                    image=ip_relative,
+                    score=anno.scores[metric_zh],
+                    metric=metric,
                     conversations=chats,
                 )
             )
