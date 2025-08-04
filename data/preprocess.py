@@ -57,7 +57,7 @@ class Preprocessor:
                     value=settings.CHAT_TEMPLATE.format(prompt=prompt, metric=metric),
                 ),
                 ChatInternVL(
-                    source="ai",
+                    source="gpt",
                     value=settings.RESPONSE_TEMPLATE.format(
                         quality=settings.QUALITY_MAP[anno.scores[metric_zh]]
                     ),
@@ -86,7 +86,7 @@ class Preprocessor:
 
         path = Path(settings.DATA_DIR)
         anno_train_file = path / f"{settings.DATA_ANNO}_train.jsonl"
-        anno_test_file = path / f"{settings.DATA_ANNO}_test.jsonl"
+        anno_test_file = path / f"{settings.DATA_ANNO}_eval.jsonl"
         meta_file = path / f"{settings.DATA_META}.json"
 
         async with aiofiles.open(anno_train_file, "w+") as f:
@@ -102,7 +102,7 @@ class Preprocessor:
         meta = AnnotationMeta(
             root=str(self._img_path.absolute()),
             annotation_train=str(anno_train_file.absolute()),
-            annotation_test=str(anno_test_file.absolute()),
+            annotation_eval=str(anno_test_file.absolute()),
             length=len(anno) * len(settings.METRICS),
         )
         async with aiofiles.open(meta_file, "w+") as f:

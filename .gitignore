@@ -5,7 +5,7 @@ build/
 dist/
 wheels/
 *.egg-info
-ipynb_checkpoints/
+.ipynb_checkpoints/
 
 # Virtual environments
 .venv
@@ -14,7 +14,7 @@ ipynb_checkpoints/
 dataset/
 
 # Output
-output/
+output*/
 
 # Env File
 .env

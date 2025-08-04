@@ -13,7 +13,6 @@ import traceback
 import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
-from functools import partial
 from typing import Dict, Literal, Optional
 
 import numpy as np
@@ -38,7 +37,6 @@ from internvl.model.internvl_chat import (
     InternVLChatModel,
 )
 from internvl.patch import (
-    concat_pad_data_collator,
     replace_internlm2_attention_class,
     replace_llama_attention_class,
     replace_llama_rmsnorm_with_fused_rmsnorm,
@@ -70,15 +68,14 @@ from internvl.train.dataset import (
     preprocess_mpt,
     preprocess_phi3,
 )
-from internvl.train.dataset_packed import PackedDataset, packed_collate_fn
+from internvl.train.dataset_packed import PackedDataset
 from PIL import Image, ImageFile, PngImagePlugin, UnidentifiedImageError
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
     AutoTokenizer,
     HfArgumentParser,
-    Trainer,
     TrainingArguments,
     set_seed,
 )
@@ -853,6 +850,8 @@ class LazySupervisedDataset(Dataset):
                         f"Failed to load video: {data_path}, the dataset is: {self.ds_name}"
                     )
                 i = random.randint(0, len(self.raw_data) - 1)
+
+        ret.update({"image": data_item["image"], "answer": data_item["score"]})
         return ret
 
     def __iter__(self):
@@ -1302,46 +1301,24 @@ def main():
     # set seed for torch dataloaders
     set_seed(training_args.seed)
 
-    if data_args.use_packed_ds:
-        collator = partial(
-            packed_collate_fn,
-            data_collator=concat_pad_data_collator,
-            max_item_length=data_args.max_packed_tokens if data_args.strict_mode else 0,
-            micro_num=training_args.train_batch_size,
-            len2weight=partial(len2weight, loss_reduction=data_args.loss_reduction),
-            loss_reduction_all_gather=data_args.loss_reduction_all_gather,
-        )
-    else:
-        collator = concat_pad_data_collator
+    model.eval()
+    dl = DataLoader(eval_dataset)
+    for data in dl:
+        for k, v in data.items():
+            data[k] = v.to(model.device)
+        with torch.no_grad():
+            res = model(
+                score=data["score"].to(torch.bfloat16),
+                pixel_values=data["pixel_values"][0].to(torch.bfloat16),
+                input_ids=data["input_ids"],
+                attention_mask=data["attention_mask"],
+                position_ids=data["position_ids"],
+                image_flags=data["image_flags"][0],
+                output_hidden_states=extra_args.output_hidden_states,
+                return_results=True,
+            )
 
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset if training_args.do_train else None,
-        eval_dataset=eval_dataset,
-        tokenizer=tokenizer,
-        data_collator=collator,
-    )
-
-    # Training
-    if training_args.do_train:
-        checkpoint = None
-        if training_args.resume_from_checkpoint is not None:
-            checkpoint = training_args.resume_from_checkpoint
-        elif last_checkpoint is not None:
-            checkpoint = last_checkpoint
-        train_result = trainer.train(resume_from_checkpoint=checkpoint)
-        trainer.save_model()  # Saves the tokenizer too for easy upload
-
-        metrics = train_result.metrics
-        try:
-            metrics["train_samples"] = len(train_dataset)
-        except Exception:
-            metrics["train_samples"] = -1
-
-        trainer.log_metrics("train", metrics)
-        trainer.save_metrics("train", metrics)
-        trainer.save_state()
+            print(res)
 
 
 if __name__ == "__main__":

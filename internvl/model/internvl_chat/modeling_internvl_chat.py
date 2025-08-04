@@ -5,7 +5,7 @@
 # --------------------------------------------------------
 
 import warnings
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Type
 
 import torch.distributed as dist
 import torch.utils.checkpoint
@@ -15,7 +15,7 @@ from internvl.model.internlm2.modeling_internlm2 import InternLM2ForCausalLM
 from internvl.model.phi3.modeling_phi3 import Phi3ForCausalLM
 from peft import LoraConfig, get_peft_model
 from torch import nn
-from torch.nn import CrossEntropyLoss
+from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
 from transformers import (
     GenerationConfig,
     LlamaForCausalLM,
@@ -25,6 +25,10 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import logging
 
+from pathlib import Path
+from typing_extensions import override
+
+from config import settings
 from .configuration_internvl_chat import InternVLChatConfig
 from .modeling_intern_vit import InternVisionModel, has_flash_attn
 
@@ -38,6 +42,35 @@ def version_cmp(v1, v2, op="eq"):
 
     op_func = getattr(operator, op)
     return op_func(version.parse(v1), version.parse(v2))
+
+
+class MLP(nn.Module):
+    def __init__(self, in_chan: int = 4096, act_layer: Type[nn.Module] = nn.ReLU):
+        super().__init__()
+
+        self.layers = nn.Sequential(
+            nn.Linear(in_chan, 1024),
+            act_layer(),
+            nn.Linear(1024, 256),
+            act_layer(),
+            nn.Linear(256, 64),
+            act_layer(),
+            nn.Linear(64, 16),
+            act_layer(),
+            nn.Linear(16, 1),
+            act_layer(),
+        )
+
+        self._init_weights()
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                m.weight.data.uniform_(-0.1, 0.1)
+                m.bias.data.zero_()
+
+    def forward(self, x: torch.Tensor):
+        return self.layers(x)
 
 
 class InternVLChatModel(PreTrainedModel):
@@ -116,6 +149,9 @@ class InternVLChatModel(PreTrainedModel):
             nn.Linear(llm_hidden_size, llm_hidden_size),
         )
 
+        self.score_mlp = MLP(1536)
+        self.train_stage = config.llm_config.train_stage
+
         self.img_context_token_id = None
         self.conv_template = get_conv_template(self.template)
         if hasattr(config, "system_message"):
@@ -186,6 +222,7 @@ class InternVLChatModel(PreTrainedModel):
 
     def forward(
         self,
+        score: torch.Tensor,
         pixel_values: torch.FloatTensor,
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
@@ -200,6 +237,7 @@ class InternVLChatModel(PreTrainedModel):
         statistics: Optional[torch.LongTensor] = None,
         loss_weight: Optional[List] = None,
         loss_reduction_all_gather: Optional[bool] = False,
+        return_results: Optional[bool] = False,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         return_dict = (
             return_dict if return_dict is not None else self.config.use_return_dict
@@ -299,6 +337,18 @@ class InternVLChatModel(PreTrainedModel):
             loss = loss_fct(shift_logits, shift_labels)
             if ignore_flag:
                 loss = loss * 0.0
+
+        # BCE Loss -- Supervise the labels
+        if self.train_stage == 1:
+            hidden_state = outputs.hidden_states[-1]
+            input_tensor = hidden_state[:, -1, :]
+            out_score = self.score_mlp(input_tensor)
+            loss_fn = BCEWithLogitsLoss(reduction="mean")
+
+            if return_results:
+                return torch.sigmoid(out_score)
+
+            loss = 0.5 * loss + loss_fn(out_score, score)
 
         if not return_dict:
             output = (logits,) + outputs[1:]
@@ -553,3 +603,44 @@ class InternVLChatModel(PreTrainedModel):
 
     def get_output_embeddings(self):
         return self.language_model.get_output_embeddings()
+
+    @override
+    def save_pretrained(
+        self,
+        save_directory,
+        is_main_process=True,
+        state_dict=None,
+        save_function=torch.save,
+        push_to_hub=False,
+        max_shard_size="5GB",
+        safe_serialization=True,
+        variant=None,
+        token=None,
+        save_peft_format=True,
+        **kwargs,
+    ):
+        super().save_pretrained(
+            save_directory,
+            is_main_process,
+            state_dict,
+            save_function,
+            push_to_hub,
+            max_shard_size,
+            safe_serialization,
+            variant,
+            token,
+            save_peft_format,
+            **kwargs,
+        )
+
+        lora_state_dict = {}
+        for name, params in self.named_parameters():
+            if "lora" in name.lower() and params.requires_grad:
+                lora_state_dict[name] = params.cpu().clone()
+
+        if lora_state_dict:
+            save_path = Path(save_directory) / settings.LORA_WEIGHT
+            torch.save(lora_state_dict, save_path)
+            logger.info(f"LoRA weights saved to {save_path}")
+        else:
+            logger.info("No LoRA weights found!")
