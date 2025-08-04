@@ -407,7 +407,7 @@ class DataAdapter:
 
             tp = self._text_path / p
             with open(tp, "r+") as f:
-                anno = AnnotationBody(**json.load(f))
+                anno = AnnotationBody(**json.loads(f.read()))
                 annotations.extend(self.construct_data(anno))
 
         meta = AnnotationMeta(
