@@ -359,9 +359,11 @@ class DataAdapter:
         self._text_path = Path(text_path)
 
     def construct_data(self, anno: AnnotationBody) -> List[Dict[str, Any]]:
+        import json
+
         prompt = json.dumps(anno.prompt, ensure_ascii=False)
         ip = self._image_path / anno.image_id
-        ip_relative = str(ip.relative_to(self._img_path))
+        ip_relative = str(ip.relative_to(self._image_path))
 
         img = Image.open(ip).convert("RGB")
         w, h = img.width, img.height
