@@ -392,7 +392,7 @@ class DataAdapter:
                     score=anno.scores[metric_zh],
                     metric=metric,
                     conversations=chats,
-                ).model_dump()
+                ).model_dump(by_alias=True)
             )
 
         return annotations
@@ -878,7 +878,7 @@ class LazySupervisedDataset(Dataset):
             if try_cnt > max_try:
                 raise StopIteration
             try:
-                data_item = json.loads(self.raw_data[i])
+                data_item = self.raw_data[i]
                 # conversations = data_item['conversations']
                 # check_conversations_repetition(conversations, repeat_threshold=0.4, ngram=10)
                 if "image" in data_item and len(data_item["image"]) != 0:
