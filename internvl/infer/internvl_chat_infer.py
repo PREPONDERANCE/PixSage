@@ -97,6 +97,7 @@ except ImportError:
     print("petrel_client is not installed. Using PIL to load images.")
     has_tcs_loader = False
 
+from tqdm import tqdm
 from sklearn.metrics import f1_score
 
 from config import settings
@@ -1068,7 +1069,7 @@ def evaluate(model: InternVLChatModel, eval_data: Dataset):
 
     pred, gt = defaultdict(list), defaultdict(list)
 
-    for data in dataloader:
+    for data in tqdm(dataloader):
         for k, v in data.items():
             if k in {"answer", "image", "metric"}:
                 continue
@@ -1085,10 +1086,11 @@ def evaluate(model: InternVLChatModel, eval_data: Dataset):
             return_results=True,
         )
 
-        pred[data["metric"][0]].append(res[0].item())
-        gt[data["metric"][0]].append(data["score"][0].item())
+        pred[data["metric"][0]].append(1 if res[0].item() > 0.5 else 0)
+        gt[data["metric"][0]].append(int(data["score"][0].item()))
 
     f1 = [f1_score(pred[metric], gt[metric]) for metric in settings.METRICS.keys()]
+
     return sum(f1) / len(f1)
 
 
