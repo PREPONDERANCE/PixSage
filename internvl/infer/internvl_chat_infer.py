@@ -12,8 +12,9 @@ import sys
 import traceback
 import warnings
 from copy import deepcopy
+from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, Literal, Optional
+from typing import Dict, Literal, Optional, List, Any, Tuple
 
 import numpy as np
 
@@ -96,7 +97,11 @@ except ImportError:
     print("petrel_client is not installed. Using PIL to load images.")
     has_tcs_loader = False
 
+from tqdm import tqdm
+from sklearn.metrics import f1_score
+
 from config import settings
+from data.schema import AnnotationBody, ChatInternVL, AnnotationInternVL, AnnotationMeta
 
 # Set constants for image processing and logging
 IGNORE_INDEX = -100
@@ -332,6 +337,9 @@ class DataTrainingArguments:
         },
     )
 
+    image_path: str = field(default="../temp/images", metadata={"help": "Image path"})
+    text_path: str = field(default="../temp/text", metadata={"help": "Text path"})
+
 
 @dataclass
 class ExtraArguments:
@@ -346,6 +354,75 @@ class ExtraArguments:
     )
 
 
+class DataAdapter:
+    def __init__(self, image_path: str, text_path: str):
+        self._image_path = Path(image_path)
+        self._text_path = Path(text_path)
+
+    def construct_data(self, anno: AnnotationBody) -> List[Dict[str, Any]]:
+        import json
+
+        prompt = json.dumps(anno.prompt, ensure_ascii=False)
+        ip = self._image_path / anno.image_id
+        ip_relative = str(ip.relative_to(self._image_path))
+
+        img = Image.open(ip).convert("RGB")
+        w, h = img.width, img.height
+
+        annotations = []
+        for metric, metric_zh in settings.METRICS.items():
+            chats = [
+                ChatInternVL(
+                    source="human",
+                    value=settings.CHAT_TEMPLATE.format(prompt=prompt, metric=metric),
+                ),
+                ChatInternVL(
+                    source="gpt",
+                    value=settings.RESPONSE_TEMPLATE.format(
+                        quality=settings.QUALITY_MAP[anno.scores[metric_zh]]
+                    ),
+                ),
+            ]
+
+            annotations.append(
+                AnnotationInternVL(
+                    width=w,
+                    height=h,
+                    id=ip_relative,
+                    image=ip_relative,
+                    score=anno.scores[metric_zh],
+                    metric=metric,
+                    conversations=chats,
+                ).model_dump(by_alias=True)
+            )
+
+        return annotations
+
+    def process(self) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        """
+        Return a fake jsonl file: a list of json string
+        """
+        annotations = []
+
+        for p in os.listdir(self._text_path):
+            if not p.endswith("json"):
+                continue
+
+            tp = self._text_path / p
+            with open(tp, "r+") as f:
+                anno = AnnotationBody(**json.loads(f.read()))
+                annotations.extend(self.construct_data(anno))
+
+        meta = AnnotationMeta(
+            root=str(self._image_path.absolute()),
+            annotation_train="",
+            annotation_eval="",
+            length=len(annotations),
+        ).model_dump()
+
+        return {settings.DATA_NAME: meta}, annotations
+
+
 class LazySupervisedDataset(Dataset):
     """Dataset for supervised fine-tuning."""
 
@@ -353,6 +430,7 @@ class LazySupervisedDataset(Dataset):
         self,
         template_name,
         meta,
+        raw_data,
         tokenizer,
         tcs_loader,
         ds_name,
@@ -418,20 +496,14 @@ class LazySupervisedDataset(Dataset):
 
         logger.info("Formatting inputs...Skip in lazy mode")
 
-        anno_file = meta[f"{settings.DATA_ANNO}_{train_eval}"]
-        assert anno_file.endswith("jsonl"), (
-            f"annotation must be jsonl, but got {meta['annotation']}"
-        )
-
-        with open(anno_file, "r") as f:
-            self.raw_data = f.readlines()
-            if repeat_time < 1:
-                # If repeat_time is less than 1, select a portion of the data
-                self.raw_data = self.raw_data[: int(len(self.raw_data) * repeat_time)]
-            if repeat_time > 1:
-                assert isinstance(repeat_time, int)
-                # Repeat the list if repeat_time is greater than 1
-                self.raw_data = self.raw_data * repeat_time
+        self.raw_data = raw_data
+        if repeat_time < 1:
+            # If repeat_time is less than 1, select a portion of the data
+            self.raw_data = self.raw_data[: int(len(self.raw_data) * repeat_time)]
+        if repeat_time > 1:
+            assert isinstance(repeat_time, int)
+            # Repeat the list if repeat_time is greater than 1
+            self.raw_data = self.raw_data * repeat_time
 
         self.rng = np.random.default_rng(seed=random_seed)
         if self.force_shuffle:
@@ -453,7 +525,7 @@ class LazySupervisedDataset(Dataset):
             self.conv2length = {}  # Using a dictionary to speed up token length calculation
             self.length = []
             for data_item in self.raw_data:
-                data_item = json.loads(data_item)
+                # data_item = json.loads(data_item)
                 if "length" in data_item:
                     token_length = data_item[
                         "length"
@@ -807,7 +879,7 @@ class LazySupervisedDataset(Dataset):
             if try_cnt > max_try:
                 raise StopIteration
             try:
-                data_item = json.loads(self.raw_data[i])
+                data_item = self.raw_data[i]
                 # conversations = data_item['conversations']
                 # check_conversations_repetition(conversations, repeat_threshold=0.4, ngram=10)
                 if "image" in data_item and len(data_item["image"]) != 0:
@@ -851,7 +923,13 @@ class LazySupervisedDataset(Dataset):
                     )
                 i = random.randint(0, len(self.raw_data) - 1)
 
-        ret.update({"image": data_item["image"], "answer": data_item["score"]})
+        ret.update(
+            {
+                "image": data_item["image"],
+                "answer": data_item["score"],
+                "metric": data_item["metric"],
+            }
+        )
         return ret
 
     def __iter__(self):
@@ -896,7 +974,10 @@ def build_datasets(
     lengths = []
     data_rank = dist.get_rank()
     data_world_size = dist.get_world_size()
-    ds_collections = json.loads(open(data_args.meta_path).read())
+
+    adapter = DataAdapter(data_args.image_path, data_args.text_path)
+    ds_collections, raw_data = adapter.process()
+
     for ds_idx, ds_name in enumerate(ds_collections.keys()):
         repeat_time = ds_collections[ds_name]["repeat_time"]
         if "max_dynamic_patch" in ds_collections[ds_name]:
@@ -909,6 +990,7 @@ def build_datasets(
         dataset = LazySupervisedDataset(
             data_args.conv_style,
             ds_collections[ds_name],
+            raw_data,
             tokenizer,
             tcs_loader,
             ds_name=ds_name,
@@ -978,6 +1060,38 @@ def len2weight(x, loss_reduction):
     if loss_reduction == "square":
         return 1 / (x**0.5)
     raise NotImplementedError(loss_reduction)
+
+
+@torch.no_grad()
+def evaluate(model: InternVLChatModel, eval_data: Dataset):
+    model.eval().cuda()
+    dataloader = DataLoader(eval_data)
+
+    pred, gt = defaultdict(list), defaultdict(list)
+
+    for data in tqdm(dataloader):
+        for k, v in data.items():
+            if k in {"answer", "image", "metric"}:
+                continue
+            data[k] = v.to(model.device)
+
+        res = model(
+            score=data["score"].to(torch.bfloat16),
+            pixel_values=data["pixel_values"][0].to(torch.bfloat16),
+            input_ids=data["input_ids"],
+            attention_mask=data["attention_mask"],
+            position_ids=data["position_ids"],
+            image_flags=data["image_flags"][0],
+            output_hidden_states=True,
+            return_results=True,
+        )
+
+        pred[data["metric"][0]].append(1 if res[0].item() > 0.5 else 0)
+        gt[data["metric"][0]].append(int(data["score"][0].item()))
+
+    f1 = [f1_score(pred[metric], gt[metric]) for metric in settings.METRICS.keys()]
+
+    return sum(f1) / len(f1)
 
 
 def main():
@@ -1225,21 +1339,6 @@ def main():
     if model_args.grad_checkpoint:
         model.language_model._set_gradient_checkpointing()
 
-    train_dataset = build_datasets(
-        data_args,
-        tokenizer,
-        tcs_loader,
-        model,
-        group_by_length=training_args.group_by_length,
-        dynamic_image_size=data_args.dynamic_image_size,
-        use_thumbnail=data_args.use_thumbnail,
-        min_dynamic_patch=data_args.min_dynamic_patch,
-        max_dynamic_patch=data_args.max_dynamic_patch,
-        normalize_type=data_args.normalize_type,
-        min_num_frame=data_args.min_num_frame,
-        max_num_frame=data_args.max_num_frame,
-    )
-
     eval_dataset = build_datasets(
         data_args,
         tokenizer,
@@ -1301,24 +1400,8 @@ def main():
     # set seed for torch dataloaders
     set_seed(training_args.seed)
 
-    model.eval()
-    dl = DataLoader(eval_dataset)
-    for data in dl:
-        for k, v in data.items():
-            data[k] = v.to(model.device)
-        with torch.no_grad():
-            res = model(
-                score=data["score"].to(torch.bfloat16),
-                pixel_values=data["pixel_values"][0].to(torch.bfloat16),
-                input_ids=data["input_ids"],
-                attention_mask=data["attention_mask"],
-                position_ids=data["position_ids"],
-                image_flags=data["image_flags"][0],
-                output_hidden_states=extra_args.output_hidden_states,
-                return_results=True,
-            )
-
-            print(res)
+    res = evaluate(model, eval_dataset)
+    print(f"F1 score: {res}")
 
 
 if __name__ == "__main__":
