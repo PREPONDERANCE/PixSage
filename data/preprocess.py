@@ -79,10 +79,12 @@ class Preprocessor:
         return annotations
 
     async def construct_file(self, anno: List[AnnotationInternVL]):
-        random.shuffle(anno)
-
-        train_size = int(len(anno) * self._train_split)
+        metric_size = len(settings.METRICS)
+        train_size = int(len(anno) // metric_size * self._train_split) * metric_size
         test_size = len(anno) - train_size
+
+        train_data, test_data = anno[:train_size], anno[train_size : len(anno)]
+        random.shuffle(train_data)
 
         await aos.makedirs(settings.DATA_DIR, exist_ok=True)
 
@@ -93,12 +95,12 @@ class Preprocessor:
 
         async with aiofiles.open(anno_train_file, "w+") as f:
             for i in range(train_size):
-                a = anno[i].model_dump(by_alias=True)
+                a = train_data[i].model_dump(by_alias=True)
                 await f.write(json.dumps(a, ensure_ascii=False) + "\n")
 
         async with aiofiles.open(anno_test_file, "w+") as f:
-            for i in range(train_size, train_size + test_size):
-                a = anno[i].model_dump(by_alias=True)
+            for i in range(test_size):
+                a = test_data[i].model_dump(by_alias=True)
                 await f.write(json.dumps(a, ensure_ascii=False) + "\n")
 
         meta = AnnotationMeta(
