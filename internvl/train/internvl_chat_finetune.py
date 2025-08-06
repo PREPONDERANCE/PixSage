@@ -70,7 +70,6 @@ from internvl.train.dataset import (
     preprocess_mpt,
     preprocess_phi3,
 )
-from internvl.tools.merge_weights import merge
 from internvl.train.dataset_packed import PackedDataset, packed_collate_fn
 from PIL import Image, ImageFile, PngImagePlugin, UnidentifiedImageError
 from torch.utils.data import Dataset
@@ -1343,8 +1342,6 @@ def main():
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
-
-        merge(training_args.output_dir, Path(training_args.output_dir) / "model")
 
 
 if __name__ == "__main__":
