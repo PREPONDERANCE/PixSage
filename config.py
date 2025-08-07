@@ -1,25 +1,13 @@
-import os
-from dotenv import load_dotenv
+import bisect
 
 
 class Settings:
-    def __init__(self):
-        load_dotenv()
-
-    MODEL_ID = "qwen-plus"
-    MODEL_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-
-    MODEL_SYS_PROMPT = """Translate this json into pure English and use natural language to describe.
-                      The sentence formats should adhere to 'The xxx is xxx'. The overall result
-                      should be concatenated to form a paragraph. Please be concise and do not
-                      add adjective information and cling to the original semantics. Afterwards,
-                      you should use comma to concatenate all the sentences."""
-
-    @property
-    def MODEL_KEY(self):
-        return os.environ.get("MODEL_KEY")
-
     DATA_DIR = "dataset"
+
+    DATA_PRETRAIN_META = "pretrain_meta"
+    DATA_PRETRAIN_ANNO = "pretrain_anno"
+    DATA_PRETRAIN_NAME = "aigc-mos"
+
     DATA_ANNO = "annotation"
     DATA_META = "meta"
     DATA_NAME = "aigc-iqa"
@@ -37,6 +25,15 @@ class Settings:
     QUALITY_MAP = ["bad", "good"]
     RESPONSE_TEMPLATE = "The quality of this image is {quality}."
     CHAT_TEMPLATE = "<image>\nEvaluate this image for '{metric}' based on the following JSON (keys in Chinese but respond in English):\n\n```json\n{prompt}\n```.\nOutput format: 'The quality of this image is [good/bad].'"
+
+    MOS_QUALITY_SCALE = [2.8, 3.4, 4.0, 4.45, 5]
+    MOS_QUALITY_MAP = ["bad", "poor", "fair", "good", "excellent"]
+
+    @classmethod
+    def MOS_TO_SCALE(cls, mos: float):
+        return cls.MOS_QUALITY_MAP[bisect.bisect_right(cls.MOS_QUALITY_SCALE, mos)]
+
+    PRETRAIN_CHAT_TEMPLATE = "<image>\nEvaluate this image based on the following description: {prompt}. Output format: 'The quality of this image is [bad/poor/fair/good/excellent].'"
 
     LORA_WEIGHT = "lora_weights.pth"
 

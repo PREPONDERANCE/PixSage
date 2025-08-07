@@ -344,7 +344,7 @@ class ExtraArguments:
     train_stage: int = field(
         default=0,
         metadata={
-            "help": "Training stage. 0 -- supervise via cross entropy. 1 - supervise via BCE"
+            "help": "Training stage. 0 -- MOS pretrain, via L1. 1 - finetune via BCE"
         },
     )
 

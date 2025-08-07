@@ -6,36 +6,111 @@ import argparse
 import aiofiles.os as aos
 
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 
 from PIL import Image
 from tqdm.asyncio import tqdm
 
-from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion
-
 from config import settings
-from .schema import AnnotationBody, ChatInternVL, AnnotationInternVL, AnnotationMeta
+from .schema import (
+    AnnotationBody,
+    ChatInternVL,
+    AnnotationInternVL,
+    AnnotationMeta,
+    AnnotationPretrain,
+)
 
 
-class Preprocessor:
+class PreTrainPreprocessor:
     def __init__(self, img_path: str, text_path: str, train_split: float):
-        self._llm = AsyncOpenAI(api_key=settings.MODEL_KEY, base_url=settings.MODEL_URL)
-
         self._img_path = Path(img_path)
         self._text_path = Path(text_path)
         self._train_split = train_split
 
-    async def _chat(self, user_input: str) -> str:
-        res: ChatCompletion = await self._llm.chat.completions.create(
-            model=settings.MODEL_ID,
-            messages=[
-                {"role": "system", "content": settings.MODEL_SYS_PROMPT},
-                {"role": "user", "content": user_input},
-            ],
+    def construct_data(self, name: str, detail: AnnotationPretrain):
+        ip = self._img_path / name
+        ip_relative = str(ip.relative_to(self._img_path))
+
+        img = Image.open(ip).convert("RGB")
+        w, h = img.width, img.height
+
+        conv = [
+            ChatInternVL(
+                source="human",
+                value=settings.PRETRAIN_CHAT_TEMPLATE.format(prompt=detail.prompt),
+            ),
+            ChatInternVL(
+                source="gpt",
+                value=settings.RESPONSE_TEMPLATE.format(
+                    quality=settings.MOS_TO_SCALE(detail.mos)
+                ),
+            ),
+        ]
+        return AnnotationInternVL(
+            id=ip_relative,
+            image=ip_relative,
+            width=w,
+            height=h,
+            score=detail.mos / 10,
+            metric="overall",
+            conversations=conv,
         )
 
-        return res.choices[0].message.content
+    async def construct_file(self, annotations: List[AnnotationInternVL]):
+        random.shuffle(annotations)
+
+        total = len(annotations)
+        train_size = int(total * self._train_split)
+
+        await aos.makedirs(settings.DATA_DIR, exist_ok=True)
+
+        path = Path(settings.DATA_DIR)
+        anno_train_file = path / f"{settings.DATA_PRETRAIN_ANNO}_train.jsonl"
+        anno_test_file = path / f"{settings.DATA_PRETRAIN_ANNO}_eval.jsonl"
+        meta_file = path / f"{settings.DATA_PRETRAIN_META}.json"
+
+        async with aiofiles.open(anno_train_file, "w+") as f:
+            for i in range(train_size):
+                a = annotations[i].model_dump(by_alias=True)
+                await f.write(json.dumps(a, ensure_ascii=False) + "\n")
+
+        async with aiofiles.open(anno_test_file, "w+") as f:
+            for i in range(train_size, total):
+                a = annotations[i].model_dump(by_alias=True)
+                await f.write(json.dumps(a, ensure_ascii=False) + "\n")
+
+        meta = AnnotationMeta(
+            root=str(self._img_path.absolute()),
+            annotation_train=str(anno_train_file.absolute()),
+            annotation_eval=str(anno_test_file.absolute()),
+            length=total,
+        )
+        async with aiofiles.open(meta_file, "w+") as f:
+            await f.write(
+                json.dumps(
+                    {settings.DATA_PRETRAIN_NAME: meta.model_dump()},
+                    ensure_ascii=False,
+                )
+            )
+
+    async def convert(self):
+        annotations = []
+
+        async with aiofiles.open(self._text_path, "r+") as f:
+            anno: Dict[str, Any] = json.loads(await f.read())
+
+        for name, detail in tqdm(anno.items()):
+            ap = AnnotationPretrain(**detail)
+            annotations.append(await asyncio.to_thread(self.construct_data, name, ap))
+
+        await self.construct_file(annotations)
+
+
+class DataPreprocessor:
+    def __init__(self, img_path: str, text_path: str, train_split: float):
+        self._img_path = Path(img_path)
+        self._text_path = Path(text_path)
+        self._train_split = train_split
 
     async def get_prompt(self, prompt: Dict[str, Union[str, Dict[str, str]]]) -> str:
         return await asyncio.to_thread(json.dumps, prompt, ensure_ascii=False)
@@ -144,8 +219,12 @@ parser.add_argument(
 parser.add_argument(
     "--train_split", type=float, default=0.8, help="Training and test dataset split"
 )
+parser.add_argument(
+    "--type", type=str, default="finetune", help="Pretrain or finetune preprocessor"
+)
 
 args = parser.parse_args()
 
-p = Preprocessor(args.image_path, args.text_path, args.train_split)
+pc = DataPreprocessor if args.type == "finetune" else PreTrainPreprocessor
+p = pc(args.image_path, args.text_path, args.train_split)
 asyncio.run(p.convert())
