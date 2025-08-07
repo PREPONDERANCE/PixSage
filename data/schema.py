@@ -1,4 +1,4 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union
 
 from pydantic import BaseModel, Field
 
@@ -22,7 +22,7 @@ class AnnotationInternVL(BaseModel):
     image: str
     width: int
     height: int
-    score: int | float = 0
+    score: Union[int, float] = 0
     metric: str = ""
     conversations: List[ChatInternVL]
 
