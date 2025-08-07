@@ -51,7 +51,7 @@ class PreTrainPreprocessor:
             image=ip_relative,
             width=w,
             height=h,
-            score=detail.mos / 10,
+            score=detail.mos / 5,
             metric="overall",
             conversations=conv,
         )
