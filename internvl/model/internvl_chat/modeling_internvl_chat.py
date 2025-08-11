@@ -15,7 +15,7 @@ from internvl.model.internlm2.modeling_internlm2 import InternLM2ForCausalLM
 from internvl.model.phi3.modeling_phi3 import Phi3ForCausalLM
 from peft import LoraConfig, get_peft_model
 from torch import nn
-from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
+from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss, L1Loss
 from transformers import (
     GenerationConfig,
     LlamaForCausalLM,
@@ -337,17 +337,23 @@ class InternVLChatModel(PreTrainedModel):
             if ignore_flag:
                 loss = loss * 0.0
 
-        # BCE Loss -- Supervise the labels
+        # Supervise the labels
+        hidden_state = outputs.hidden_states[-1]
+        input_tensor = hidden_state[:, -1, :]
+
+        out_score: torch.Tensor = self.score_mlp(input_tensor)
+
+        if self.train_stage == 0:
+            out_score = out_score.relu()
+            loss_fn = L1Loss(reduction="mean")
+
         if self.train_stage == 1:
-            hidden_state = outputs.hidden_states[-1]
-            input_tensor = hidden_state[:, -1, :]
-            out_score = self.score_mlp(input_tensor)
             loss_fn = BCEWithLogitsLoss(reduction="mean")
 
-            if return_results:
-                return torch.sigmoid(out_score)
+        if return_results:
+            return out_score if self.train_stage == 0 else torch.sigmoid(out_score)
 
-            loss = 0.5 * loss + loss_fn(out_score, score)
+        loss = 0.5 * loss + loss_fn(out_score, score)
 
         if not return_dict:
             output = (logits,) + outputs[1:]

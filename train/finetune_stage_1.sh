@@ -11,7 +11,7 @@ export MASTER_PORT=34229
 export TF_CPP_MIN_LOG_LEVEL=3
 export LAUNCHER=pytorch
 
-OUTPUT_DIR='output'
+OUTPUT_DIR='output_stage_1'
 
 if [ ! -d "$OUTPUT_DIR" ]; then
   mkdir -p "$OUTPUT_DIR"
@@ -33,7 +33,11 @@ torchrun \
   --conv_style "internvl2_5" \
   --use_fast_tokenizer False \
   --output_dir ${OUTPUT_DIR} \
-  --meta_path "dataset/meta.json" \
+  --meta_path "dataset/pretrain_meta.json" \
+  --output_hidden_states True \
+  --train_stage 0 \
+  --use_llm_lora 8 \
+  --use_backbone_lora 8 \
   --overwrite_output_dir True \
   --force_image_size 448 \
   --max_dynamic_patch 12 \
@@ -48,7 +52,9 @@ torchrun \
   --num_train_epochs 50 \
   --per_device_train_batch_size ${PER_DEVICE_BATCH_SIZE} \
   --gradient_accumulation_steps ${GRADIENT_ACC} \
-  --evaluation_strategy "no" \
+  --evaluation_strategy "steps" \
+  --eval_steps 40 \
+  --per_device_eval_batch_size ${PER_DEVICE_BATCH_SIZE} \
   --save_strategy "steps" \
   --save_steps 200 \
   --save_total_limit 1 \

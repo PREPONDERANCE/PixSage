@@ -1,4 +1,5 @@
 import torch
+import argparse
 
 from pathlib import Path
 from transformers import AutoTokenizer
@@ -32,3 +33,12 @@ def merge(model_path: str, dest_path: str):
     print("Saving tokenizer...")
     tokenizer.save_pretrained(dest_path)
     print("Done!")
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--model_path", required=True)
+
+args = parser.parse_args()
+
+model_path = Path(args.model_path)
+merge(model_path, model_path / "model")
