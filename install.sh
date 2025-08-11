@@ -1,9 +1,3 @@
-pip install uv
-
-uv venv
-
-source .venv/bin/activate
-
 uv pip install torch==2.1.0
 uv sync
 
