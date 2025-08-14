@@ -98,7 +98,8 @@ except ImportError:
     has_tcs_loader = False
 
 from tqdm import tqdm
-from sklearn.metrics import f1_score
+from pydantic import BaseModel
+from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
 
 from config import settings
 from data.schema import AnnotationBody, ChatInternVL, AnnotationInternVL, AnnotationMeta
@@ -371,6 +372,9 @@ class DataAdapter:
 
         annotations = []
         for metric, metric_zh in settings.METRICS.items():
+            # For evaluation without gt labels, default to 0
+            score = anno.scores[metric_zh] if anno.scores else 0
+
             chats = [
                 ChatInternVL(
                     source="human",
@@ -379,7 +383,7 @@ class DataAdapter:
                 ChatInternVL(
                     source="gpt",
                     value=settings.RESPONSE_TEMPLATE.format(
-                        quality=settings.QUALITY_MAP[anno.scores[metric_zh]]
+                        quality=settings.QUALITY_MAP[score]
                     ),
                 ),
             ]
@@ -390,7 +394,7 @@ class DataAdapter:
                     height=h,
                     id=ip_relative,
                     image=ip_relative,
-                    score=anno.scores[metric_zh],
+                    score=score,
                     metric=metric,
                     conversations=chats,
                 ).model_dump(by_alias=True)
@@ -421,6 +425,13 @@ class DataAdapter:
         ).model_dump()
 
         return {settings.DATA_NAME: meta}, annotations
+
+
+class Criterion(BaseModel):
+    F1: List[float] = []
+    ACC: List[float] = []
+    RECALL: List[float] = []
+    PRECISION: List[float] = []
 
 
 class LazySupervisedDataset(Dataset):
@@ -1063,7 +1074,7 @@ def len2weight(x, loss_reduction):
 
 
 @torch.no_grad()
-def evaluate(model: InternVLChatModel, eval_data: Dataset):
+def evaluate(model: InternVLChatModel, eval_data: Dataset) -> Dict[str, float]:
     model.eval().cuda()
     dataloader = DataLoader(eval_data)
 
@@ -1089,9 +1100,18 @@ def evaluate(model: InternVLChatModel, eval_data: Dataset):
         pred[data["metric"][0]].append(1 if res[0].item() > 0.5 else 0)
         gt[data["metric"][0]].append(int(data["score"][0].item()))
 
-    f1 = [f1_score(pred[metric], gt[metric]) for metric in settings.METRICS.keys()]
+    cri = Criterion()
+    for metric in settings.METRICS.keys():
+        src_pred, src_gt = pred[metric], gt[metric]
+        cri.F1.append(f1_score(src_pred, src_gt))
+        cri.ACC.append(accuracy_score(src_pred, src_gt))
+        cri.RECALL.append(recall_score(src_pred, src_gt))
+        cri.PRECISION.append(precision_score(src_pred, src_gt))
 
-    return sum(f1) / len(f1)
+    cri = cri.model_dump()
+    res = {key: sum(val) / len(val) for key, val in cri.items()}
+
+    return res
 
 
 def main():
@@ -1401,7 +1421,9 @@ def main():
     set_seed(training_args.seed)
 
     res = evaluate(model, eval_dataset)
-    print(f"F1 score: {res}")
+    print("============ FINAL RESULT =============")
+    print(res)
+    print("================ END ==================")
 
 
 if __name__ == "__main__":
