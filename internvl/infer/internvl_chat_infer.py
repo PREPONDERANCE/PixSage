@@ -428,10 +428,20 @@ class DataAdapter:
 
 
 class Criterion(BaseModel):
-    F1: List[float] = []
-    ACC: List[float] = []
-    RECALL: List[float] = []
-    PRECISION: List[float] = []
+    f1: List[float] = []
+    acc: List[float] = []
+    recall: List[float] = []
+    precision: List[float] = []
+
+
+class InferenceImageResult(BaseModel):
+    image_id: str
+    scores: Dict[str, int]
+
+
+class InferenceResults(BaseModel):
+    team_id: str
+    results: List[InferenceImageResult]
 
 
 class LazySupervisedDataset(Dataset):
@@ -1073,11 +1083,18 @@ def len2weight(x, loss_reduction):
     raise NotImplementedError(loss_reduction)
 
 
-@torch.no_grad()
-def evaluate(model: InternVLChatModel, eval_data: Dataset) -> Dict[str, float]:
+@torch.inference_mode()
+def evaluate(
+    model: InternVLChatModel, eval_data: Dataset, output_dir: str
+) -> Dict[str, float]:
+    import json
+
+    assert torch.cuda.is_available(), "GPU is needed to infer the results"
+
     model.eval().cuda()
     dataloader = DataLoader(eval_data)
 
+    infer_res = defaultdict(dict)
     pred, gt = defaultdict(list), defaultdict(list)
 
     for data in tqdm(dataloader):
@@ -1097,16 +1114,32 @@ def evaluate(model: InternVLChatModel, eval_data: Dataset) -> Dict[str, float]:
             return_results=True,
         )
 
-        pred[data["metric"][0]].append(1 if res[0].item() > 0.5 else 0)
-        gt[data["metric"][0]].append(int(data["score"][0].item()))
+        metric, image = data["metric"][0], data["image"][0]
+        pred_val = 1 if res[0].item() > 0.5 else 0
+        gt_val = int(data["score"][0].item())
+
+        pred[data["metric"][0]].append(pred_val)
+        gt[data["metric"][0]].append(gt_val)
+
+        infer_res[image].update({metric: pred_val})
+
+    infer = [
+        InferenceImageResult(image_id=image, scores=res)
+        for image, res in infer_res.items()
+    ]
+    res = InferenceResults(results=infer, team_id="PixSage")
+
+    out = Path(output_dir) / "res.json"
+    with open(out, "w+") as f:
+        json.dump(res.model_dump(), f, ensure_ascii=False)
 
     cri = Criterion()
     for metric in settings.METRICS.keys():
         src_pred, src_gt = pred[metric], gt[metric]
-        cri.F1.append(f1_score(src_pred, src_gt))
-        cri.ACC.append(accuracy_score(src_pred, src_gt))
-        cri.RECALL.append(recall_score(src_pred, src_gt))
-        cri.PRECISION.append(precision_score(src_pred, src_gt))
+        cri.f1.append(f1_score(src_pred, src_gt))
+        cri.acc.append(accuracy_score(src_pred, src_gt))
+        cri.recall.append(recall_score(src_pred, src_gt))
+        cri.precision.append(precision_score(src_pred, src_gt))
 
     cri = cri.model_dump()
     res = {key: sum(val) / len(val) for key, val in cri.items()}
