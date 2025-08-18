@@ -1453,7 +1453,7 @@ def main():
     # set seed for torch dataloaders
     set_seed(training_args.seed)
 
-    res = evaluate(model, eval_dataset)
+    res = evaluate(model, eval_dataset, training_args.output_dir)
     print("============ FINAL RESULT =============")
     print(res)
     print("================ END ==================")
