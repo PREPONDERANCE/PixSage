@@ -1121,7 +1121,7 @@ def evaluate(
         pred[data["metric"][0]].append(pred_val)
         gt[data["metric"][0]].append(gt_val)
 
-        infer_res[image].update({metric: pred_val})
+        infer_res[image].update({settings.METRICS[metric]: pred_val})
 
     infer = [
         InferenceImageResult(image_id=image, scores=res)
