@@ -98,7 +98,8 @@ except ImportError:
     has_tcs_loader = False
 
 from tqdm import tqdm
-from sklearn.metrics import f1_score
+from pydantic import BaseModel
+from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
 
 from config import settings
 from data.schema import AnnotationBody, ChatInternVL, AnnotationInternVL, AnnotationMeta
@@ -371,6 +372,9 @@ class DataAdapter:
 
         annotations = []
         for metric, metric_zh in settings.METRICS.items():
+            # For evaluation without gt labels, default to 0
+            score = anno.scores[metric_zh] if anno.scores else 0
+
             chats = [
                 ChatInternVL(
                     source="human",
@@ -379,7 +383,7 @@ class DataAdapter:
                 ChatInternVL(
                     source="gpt",
                     value=settings.RESPONSE_TEMPLATE.format(
-                        quality=settings.QUALITY_MAP[anno.scores[metric_zh]]
+                        quality=settings.QUALITY_MAP[score]
                     ),
                 ),
             ]
@@ -390,7 +394,7 @@ class DataAdapter:
                     height=h,
                     id=ip_relative,
                     image=ip_relative,
-                    score=anno.scores[metric_zh],
+                    score=score,
                     metric=metric,
                     conversations=chats,
                 ).model_dump(by_alias=True)
@@ -421,6 +425,23 @@ class DataAdapter:
         ).model_dump()
 
         return {settings.DATA_NAME: meta}, annotations
+
+
+class Criterion(BaseModel):
+    f1: List[float] = []
+    acc: List[float] = []
+    recall: List[float] = []
+    precision: List[float] = []
+
+
+class InferenceImageResult(BaseModel):
+    image_id: str
+    scores: Dict[str, int]
+
+
+class InferenceResults(BaseModel):
+    team_id: str
+    results: List[InferenceImageResult]
 
 
 class LazySupervisedDataset(Dataset):
@@ -1062,11 +1083,18 @@ def len2weight(x, loss_reduction):
     raise NotImplementedError(loss_reduction)
 
 
-@torch.no_grad()
-def evaluate(model: InternVLChatModel, eval_data: Dataset):
+@torch.inference_mode()
+def evaluate(
+    model: InternVLChatModel, eval_data: Dataset, output_dir: str
+) -> Dict[str, float]:
+    import json
+
+    assert torch.cuda.is_available(), "GPU is needed to infer the results"
+
     model.eval().cuda()
     dataloader = DataLoader(eval_data)
 
+    infer_res = defaultdict(dict)
     pred, gt = defaultdict(list), defaultdict(list)
 
     for data in tqdm(dataloader):
@@ -1086,12 +1114,37 @@ def evaluate(model: InternVLChatModel, eval_data: Dataset):
             return_results=True,
         )
 
-        pred[data["metric"][0]].append(1 if res[0].item() > 0.5 else 0)
-        gt[data["metric"][0]].append(int(data["score"][0].item()))
+        metric, image = data["metric"][0], data["image"][0]
+        pred_val = 1 if res[0].item() > 0.5 else 0
+        gt_val = int(data["score"][0].item())
 
-    f1 = [f1_score(pred[metric], gt[metric]) for metric in settings.METRICS.keys()]
+        pred[data["metric"][0]].append(pred_val)
+        gt[data["metric"][0]].append(gt_val)
 
-    return sum(f1) / len(f1)
+        infer_res[image].update({settings.METRICS[metric]: pred_val})
+
+    infer = [
+        InferenceImageResult(image_id=image, scores=res)
+        for image, res in infer_res.items()
+    ]
+    res = InferenceResults(results=infer, team_id="PixSage")
+
+    out = Path(output_dir) / "res.json"
+    with open(out, "w+") as f:
+        json.dump(res.model_dump(), f, ensure_ascii=False)
+
+    cri = Criterion()
+    for metric in settings.METRICS.keys():
+        src_pred, src_gt = pred[metric], gt[metric]
+        cri.f1.append(f1_score(src_pred, src_gt))
+        cri.acc.append(accuracy_score(src_pred, src_gt))
+        cri.recall.append(recall_score(src_pred, src_gt))
+        cri.precision.append(precision_score(src_pred, src_gt))
+
+    cri = cri.model_dump()
+    res = {key: sum(val) / len(val) for key, val in cri.items()}
+
+    return res
 
 
 def main():
@@ -1400,8 +1453,10 @@ def main():
     # set seed for torch dataloaders
     set_seed(training_args.seed)
 
-    res = evaluate(model, eval_dataset)
-    print(f"F1 score: {res}")
+    res = evaluate(model, eval_dataset, training_args.output_dir)
+    print("============ FINAL RESULT =============")
+    print(res)
+    print("================ END ==================")
 
 
 if __name__ == "__main__":

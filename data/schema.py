@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class AnnotationBody(BaseModel):
     image_id: str
-    scores: Dict[str, int]
+    scores: Dict[str, int] = None
     prompt: Dict[str, Any]
 
 
