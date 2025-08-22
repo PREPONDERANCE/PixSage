@@ -44,6 +44,39 @@ def version_cmp(v1, v2, op="eq"):
     return op_func(version.parse(v1), version.parse(v2))
 
 
+class CombinedLoss(nn.Module):
+    def __init__(self, plcc_weight: float = 0.5, rk_weight: float = 0.5):
+        super().__init__()
+
+        self.wp = plcc_weight
+        self.wr = rk_weight
+
+    def rank_loss(self, y_pred: torch.Tensor, y: torch.Tensor):
+        ranking_loss = torch.nn.functional.relu(
+            (y_pred - y_pred.t()) * torch.sign((y.t() - y))
+        )
+        scale = 1 + torch.max(ranking_loss)
+        return (
+            torch.sum(ranking_loss) / y_pred.shape[0] / (y_pred.shape[0] - 1) / scale
+        ).float()
+
+    def plcc_loss(self, y_pred: torch.Tensor, y: torch.Tensor):
+        sigma_hat, m_hat = torch.std_mean(y_pred, unbiased=False)
+        y_pred = (y_pred - m_hat) / (sigma_hat + 1e-8)
+        sigma, m = torch.std_mean(y, unbiased=False)
+        y = (y - m) / (sigma + 1e-8)
+        loss0 = torch.nn.functional.mse_loss(y_pred, y) / 4
+        rho = torch.mean(y_pred * y)
+        loss1 = torch.nn.functional.mse_loss(rho * y_pred, y) / 4
+        return ((loss0 + loss1) / 2).float()
+
+    def forward(self, y_pred: torch.Tensor, y: torch.Tensor):
+        rk_loss = self.rank_loss(y_pred, y)
+        pl_loss = self.plcc_loss(y_pred, y)
+
+        return self.wp * pl_loss + self.wr * rk_loss
+
+
 class MLP(nn.Module):
     def __init__(self, in_chan: int = 4096, act_layer: Type[nn.Module] = nn.ReLU):
         super().__init__()
@@ -345,7 +378,7 @@ class InternVLChatModel(PreTrainedModel):
 
         if self.train_stage == 0:
             out_score = out_score.relu()
-            loss_fn = L1Loss(reduction="mean")
+            loss_fn = CombinedLoss()
 
         if self.train_stage == 1:
             loss_fn = BCEWithLogitsLoss(reduction="mean")
@@ -353,7 +386,7 @@ class InternVLChatModel(PreTrainedModel):
         if return_results:
             return out_score if self.train_stage == 0 else torch.sigmoid(out_score)
 
-        loss = 0.5 * loss + loss_fn(out_score, score)
+        loss = loss_fn(out_score, score)
 
         if not return_dict:
             output = (logits,) + outputs[1:]
